@@ -1,3 +1,5 @@
+![Migration](https://user-images.githubusercontent.com/105330539/169730776-0b01ee45-dd61-42ab-ae7e-339fdfe9d12f.png)
+
 # Migration
 Tool to assist in helping end users enroll their devices into a new MDM platform for macOS devices. Helpful if migrating a fleet of computers to a new MDM without needing to wipe them or utilize manual enrollment and not maintaining full control of the devices. 
 
