@@ -1,14 +1,14 @@
-![Migration](https://user-images.githubusercontent.com/105330539/169730776-0b01ee45-dd61-42ab-ae7e-339fdfe9d12f.png)
+![Warp-Pipe](https://github.com/joshricketts/Mosyle-Warp-Pipe/assets/105330539/09754aa7-3f80-4ea7-b19b-78749bf28efa)
 
-# Migration
+# Mosyle Warp Pipe
 Tool to assist in helping end users enroll their devices into a new MDM platform for macOS devices. Helpful if migrating a fleet of computers to a new MDM without needing to wipe them or utilize manual enrollment and not maintaining full control of the devices. 
 
 
 Here's a demo of the end user experience:
-https://drive.google.com/file/d/1A_K2qICcGhcbaypLKpYUjjvfiWvxiSIq/view?usp=sharing
 
 
-This is reliant on DEPNotify for instruction and notification to end users. There several ways this tool could be utilized.
+This is reliant on SwiftDialog for instruction and notification to end users. Thank you Bart Reardon! Check out SwiftDialog:
+https://github.com/swiftDialog/swiftDialog
 
 
 ## How to Use
@@ -18,6 +18,7 @@ This is reliant on DEPNotify for instruction and notification to end users. Ther
 4. Run the script to prompt users to enroll their device.
 
 ### Recommended method
+
 
 - Customize the Migration.sh file to say what you want in the message and title, and to display the icon/logo you want.
 
