@@ -3,7 +3,33 @@
 # This script walks end-users through enrolling their computers into an MDM. Please check the following URL for instructions on 
 version="1.0"
 
+# -----------------------------------------------------------------------------------
+# *** CUSTOMIZABLE VARIABLES ***
+# -----------------------------------------------------------------------------------
+
 enrollment_URL="" # find this in their Mosyle tenant under Organization/My School > Apple Basic Setup > Enrollment > Manual Enroll via Safari URL-----Ex: "https://enroll.mosyle.com/?account=organization"
+
+instructionURL=""
+
+support_email=""
+
+title="Mosyle Enrollment"
+
+initial_message="## Device is not managed by Mosyle\n
+To begin the process of enrollment click the **Start** button below\n
+Then follow the coming instructions to enroll your device into Mosyle.\n"
+
+error_message="Enrollment was not successful. You will be prompted to reattempt shortly.\n
+If continue to have trouble enrolling your Mac please email the following support address:\n
+**$support_email**"
+
+success_message="Enrollment into Mosyle was successful!\n
+Feel free to check out the new Self-Service app which looks like the above icon."
+
+helpmessage="This tool is designed to run when a device is not enrolled into Mosyle.\n
+It will prompt you every 30 minutes to complete enrollment until you have successfully enrolled.\n
+If you have any problems enrolling please email:\n
+**$support_email**"
 
 # -----------------------------------------------------------------------------------
 # *** STATIC VARIABLES ***
@@ -21,15 +47,7 @@ dialog_command_file="/var/tmp/Enroll_Mosyle_CMDfile.txt"
 # Refresh SwiftDialog command file
 echo "" > "$dialog_command_file"
 
-title="Mosyle Enrollment"
-
 icon="/Library/Application Support/Mosyle Warp Pipe/Mosyle-icon.png"
-
-support_email=""
-
-initial_message="## Device is not managed by Mosyle\n
-To begin the process of enrollment click the **Start** button below\n
-Then follow the coming instructions to enroll your device into Mosyle.\n"
 
 caption1_ADE="Click the notification that should have just shown in the top right corner of the screen. If you don't see one then click on the date and time on the menu bar, and then click the nofication there."
 caption2_ADE="After clicking 'Allow' you will be prompted to enter the login credentials for your laptop to finish enrollment."
@@ -41,21 +59,6 @@ caption3_Safari="Open System Preferences or System Settings and find 'Profiles'.
 caption4_Safari="Double-click on the profile pending install."
 caption5_Safari="Click 'Enroll' on the pop-up."
 caption6_Safari="Enter your computer's login credentials to approve the install."
-
-error_message="Enrollment was not successful. You will be prompted to reattempt shortly.\n
-If continue to have trouble enrolling your Mac please email the following support address:\n
-**$support_email**"
-
-success_message="Enrollment into Mosyle was successful!\n
-Feel free to check out the new Self-Service app which looks like the above icon."
-
-helpmessage="This tool is designed to run when a device is not enrolled into Mosyle.\n
-It will prompt you every 30 minutes to complete enrollment until you have successfully enrolled.\n
-If you have any problems enrolling please email:\n
-**$support_email**"
-
-instructionURL="https://kb.enabletech.com/kba/pub-macos-enrollment-information-f099269450ac"
-
 
 dialogCMD_Initial="$dialogApp \
 --title \"$title\" \
