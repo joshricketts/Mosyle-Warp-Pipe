@@ -1,315 +1,445 @@
-#!/bin/bash
+#!/bin/zsh
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** CUSTOMIZED PORTION OF SCRIPT ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# This script walks end-users through enrolling their computers into an MDM. Please check the following URL for instructions on 
+version="1.0"
+
+enrollment_URL="" # find this in their Mosyle tenant under Organization/My School > Apple Basic Setup > Enrollment > Manual Enroll via Safari URL-----Ex: "https://enroll.mosyle.com/?account=organization"
+
+# -----------------------------------------------------------------------------------
+# *** STATIC VARIABLES ***
+# -----------------------------------------------------------------------------------
+
+timestamp=$(date "+%a %h %d %H:%M:%S")
+logfile="/var/log/Mosyle_Warp.log"
+
+# Refresh script log file, and write initial timestamp of script run
+echo "$timestamp" > "$logfile"
+
+dialogApp="/usr/local/bin/dialog"
+dialog_command_file="/var/tmp/Enroll_Mosyle_CMDfile.txt"
+
+# Refresh SwiftDialog command file
+echo "" > "$dialog_command_file"
+
+title="Mosyle Enrollment"
+
+icon="/Library/Application Support/Mosyle Warp Pipe/Mosyle-icon.png"
+
+support_email=""
+
+initial_message="## Device is not managed by Mosyle\n
+To begin the process of enrollment click the **Start** button below\n
+Then follow the coming instructions to enroll your device into Mosyle.\n"
+
+caption1_ADE="Click the notification that should have just shown in the top right corner of the screen. If you don't see one then click on the date and time on the menu bar, and then click the nofication there."
+caption2_ADE="After clicking 'Allow' you will be prompted to enter the login credentials for your laptop to finish enrollment."
+caption3_ADE="Enter your computer's login credentials to approve the install."
+
+caption1_Safari="Safari should have opened to download a file, and a notification should have come up."
+caption2_Safari="If you don't see the notification then open the .mobileconfig file that should now be the most recent file in your 'Downloads' folder. (It will not have the same name as the example)"
+caption3_Safari="Open System Preferences or System Settings and find 'Profiles'."
+caption4_Safari="Double-click on the profile pending install."
+caption5_Safari="Click 'Enroll' on the pop-up."
+caption6_Safari="Enter your computer's login credentials to approve the install."
+
+error_message="Enrollment was not successful. You will be prompted to reattempt shortly.\n
+If continue to have trouble enrolling your Mac please email the following support address:\n
+**$support_email**"
+
+success_message="Enrollment into Mosyle was successful!\n
+Feel free to check out the new Self-Service app which looks like the above icon."
+
+helpmessage="This tool is designed to run when a device is not enrolled into Mosyle.\n
+It will prompt you every 30 minutes to complete enrollment until you have successfully enrolled.\n
+If you have any problems enrolling please email:\n
+**$support_email**"
+
+instructionURL="https://kb.enabletech.com/kba/pub-macos-enrollment-information-f099269450ac"
 
 
-# Custom title and message in Dialog box. To enter a space and new line in the message use the following text before each line: " \n \n"
+dialogCMD_Initial="$dialogApp \
+--title \"$title\" \
+--message \"$initial_message\" \
+--alignment center \
+--icon \"$icon\" \
+--commandfile \"$dialog_command_file\" \
+--quitkey \"X\" \
+--small \
+--moveable \
+--ontop \
+--timer 600 \
+--hidetimerbar \
+--helpmessage \"$helpmessage\" \
+--infobuttontext \"More Instructions\" \
+--infobuttonaction \"$instructionURL\" \
+--button1text \"Start\" \
+"
 
-title="Enroll your Mac into our new MDM!"
+dialogCMD_ADE_Enroll="$dialogApp \
+--title \"$title\" \
+--alignment center \
+--icon \"$icon\" \
+--message \"$ADE_message\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/ADE-Assets/1.Notification.png\" \
+--imagecaption \"$caption1_ADE\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/ADE-Assets/2.ClickAllow.png\" \
+--imagecaption \"$caption2_ADE\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/ADE-Assets/3.EnterCreds.png\" \
+--imagecaption \"$caption3_ADE\" \
+--commandfile \"$dialog_command_file\" \
+--quitkey \"X\" \
+--moveable \
+--ontop \
+--timer 600 \
+--hidetimerbar \
+--autoplay \
+--helpmessage \"$helpmessage\" \
+--infobuttontext \"More Instructions\" \
+--infobuttonaction \"$instructionURL\" \
+--button1text \"Done!\" \
+--button2text \"I didn't receive a notification...\" \
+"
 
-message="You must complete the enrollment process into the new management system. \n \n
-If you do not enroll your device you will not be able to access to any resources within your organization. \n \n
-Please connect to a network at this time. \n \nIf no notification shows up when this text changes then try clicking the clock in the top right corner of your display on the menu bar."
+dialogCMD_Safari_Enroll="$dialogApp \
+--title \"$title\" \
+--alignment center \
+--icon \"$icon\" \
+--message \"$Safari_message\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/1.Notification.png\" \
+--imagecaption \"$caption1_Safari\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/2.DownloadedFile.png\" \
+--imagecaption \"$caption2_Safari\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/3.OpenSystemPrefs.png\" \
+--imagecaption \"$caption3_Safari\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/4.Double-ClickProfile.png\" \
+--imagecaption \"$caption4_Safari\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/5.ClickEnroll.png\" \
+--imagecaption \"$caption5_Safari\" \
+--image \"/Library/Application Support/Mosyle Warp Pipe/Safari-Assets/6.EnterCreds.png\" \
+--imagecaption \"$caption6_Safari\" \
+--commandfile \"$dialog_command_file\" \
+--quitkey \"X\" \
+--moveable \
+--ontop \
+--timer 600 \
+--hidetimerbar \
+--autoplay \
+--helpmessage \"$helpmessage\" \
+--infobuttontext \"More Instructions\" \
+--infobuttonaction \"$instructionURL\" \
+--button1text \"Done!\" \
+--button2text \"I wasn't able to complete enrollment...\" \
+"
 
-# Text for the computer to search for within the Configuration Profiles directory.
-# This is to detect if there is still a config profile from the old MDM to determine if we are still enrolled. Generally should be the MDM name.
-oldMDM="JAMF"
+dialogCMD_Error="$dialogApp \
+--title \"$title\" \
+--message \"$error_message\" \
+--alignment center \
+--small \
+--icon \"$icon\" \
+--commandfile \"$dialog_command_file\" \
+--quitkey \"X\" \
+--moveable \
+--ontop \
+--timer 600 \
+--hidetimerbar \
+--helpmessage \"$helpmessage\" \
+--infobuttontext \"More Instructions\" \
+--infobuttonaction \"$instructionURL\" \
+--button1text \"Close\" \
+"
 
-# Text for the computer to search for within the Configuration Profiles directory.
-# This is to detect if there is still a config profile from the old MDM to determine if we are still enrolled. Generally should be the MDM name.
-newMDM="Mosyle"
+MDMs=(
+	"JAMF"
+	"Intune"
+	"Meraki"
+	"Kandji"
+	"Hexnode"
+	"JumpCloud"
+	"Workspace One"
+	"MobileIron"
+	"MaaS360"
+	"Cisco"
+	"IBM"
+	"Airwatch"
+	"Addigy"
+	"Microsoft"
+	"Zuludesk"
+	"Mosyle"
+	)
 
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** START OF STANDARD SCRIPT ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** VARIABLES ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-# File path to packaged Mosyle icon for 
-icon="Command: Image: /Library/Management/EnrollMDM/Mosyle$Mosyleicon.png"
-
-# DEPNotify application path
-dialog_app="/Applications/Utilities/DEPNotify.app/Contents/MacOS/DEPNotify"
-
-# DEPNotify command file path
-dialog_cmd_file="/var/tmp/depnotify.log"
-
-# Command to open DEPNotify dialog window
-dialog_cmd="/bin/echo 
-Command: MainTitle: $title
-Command: MainText: $message
-$icon"
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** FUNCTIONS ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# Clear log file
-function clearlog(){
-	rm /private/var/tmp/depnotify.log; touch /private/var/tmp/depnotify.log
-}
-
-# Execute a DEPNotify command.
-function dialog_command(){
-	/bin/echo "$1"
-	/bin/echo "$1"  >> "$dialog_cmd_file"
-}
-
-# Remove prior provisioning file for testing and debugging
-function cleanup(){
-	rm -r /private/var/tmp/com.depnotify.provisioning.done
-}
-
-# Unenroll from JAMF School. You'll need to review API documentation and build and API in Postman to get the "curl" section information created.
-function unenrollJAMFSchool(){
-    udid=$(system_profiler SPHardwareDataType | awk '/UUID/ { print $3; }')
-echo "$udid"
-    curl --location --request POST "https://#specificURLofyourJAMFSchooltenant#.jamfcloud.com/api/devices/$udid/unenroll" \
---header "Authorization: Basic #Base64-JAMFSchoolNetworkID:APIKey#" \
---header "Cookie: hash=#you'll get this when building your API in Postman#"
-}
-
-# Find if we are currently enrolled in the old MDM. This function works well for JAMF School which is the only one I can test on. We shouldn't need the "checkAllMDMs" function if you know which MDM you're leaving and put it in the variable up top.
-function checkOldMDM(){
-    grep -Ril "$oldMDM" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-# Here is where you will want to put the unenroll function for your specific tenant in place of the echo and exit commands. 
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-}
-
-# Find if we are currently enrolled into any MDM currently. This function cannot be fully tested for all MDMs. If you're moving from an MDM besides JAMF please test this well prior to deployment.
-function checkAllMDMs(){
-    grep -Ril "JAMF" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Intune" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Meraki" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Kandji" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Mosyle" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Meraki" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "Hexnode" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "JumpCloud" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "Workspace One" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "MobileIron" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "MaaS360" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "Cisco" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "IBM" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-     grep -Ril "Airwatch" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Addigy" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Microsoft" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-    grep -Ril "Zuludesk" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
-    if [[ $? = 0 ]];
-        then echo "You must unenroll this device from the old MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding"
-    exit 1000
-    fi
-}
+# -----------------------------------------------------------------------------------
+# *** STATIC FUNCTIONS ***
+# -----------------------------------------------------------------------------------
 
 # Find if we are currently enrolled into any MDM currently. This function cannot be fully tested for all MDMs. If you're moving from an MDM besides JAMF please test this well prior to deployment.
-function checknewMDM(){
-    grep -Ril "$newMDM" /private/var/db/ConfigurationProfiles/Settings/Managed\ Applications 
+function checkMosyle(){
+    grep -Ril "Mosyle" "/private/var/db/ConfigurationProfiles/Settings/Managed Applications"; check_code="$?"
+
+    echo "checkMosyle exit code = $check_code" 2>&1 | tee -a "$logfile"
+
+    if [[ "$check_code" == 0 ]]; then 
+    	#echo "Enrolled in Mosyle. Success." 2>&1 | tee -a "$logfile"
+
+    	dialogCMD_Success="$dialogApp \
+    		--title \"$title\" \
+				--message \"$success_message\" \
+				--alignment center \
+				--small \
+				--icon \"$icon\" \
+				--centericon \
+				--commandfile \"$dialog_command_file\" \
+				--quitkey \"X\" \
+				--moveable \
+				--ontop \
+				--timer 600 \
+				--hidetimerbar \
+				--helpmessage \"$helpmessage\" \
+				--button1text \"Close\" \
+				"
+				
+    	/bin/echo "$dialogCMD_Success" 2>&1 | tee -a "$logfile"
+			eval "$dialogCMD_Success" &
+			sleep .5
+    	exit 0
+    fi
 }
 
-# Command to enroll Mac
-function enroll(){
-	sudo profiles renew -type enrollment
-}
+# -----------------------------------------------------------------------------------
+# *** VERIFY SWIFTDIALOG IS IN PLACE ***
+# -----------------------------------------------------------------------------------
 
-# Command to properly rest between sections of script
-function rest(){
-	sleep 5
-}
+  # Get the URL of the latest PKG From the Dialog GitHub repo
+  dialogURL=$(curl --silent --fail "https://api.github.com/repos/bartreardon/swiftDialog/releases/latest" | awk -F '"' "/browser_download_url/ && /pkg\"/ { print \$4; exit }")
+  # Expected Team ID of the downloaded PKG
+  dialogExpectedTeamID="PWA5E9TQ59"
 
-function finalize_success(){
-	dialog_command "Command: Determinate: 1"
-	dialog_command "Command: DeterminateManualStep: 1"
-	dialog_command "Command: ContinueButton: Done ✅"
-	dialog_command "Command: MainText: You've successfully completed enrollment of your Mac! Thank you!"
-    dialog_command "Command: MainTitle: Enrollment Complete!"
-}
+  # Check for Dialog and install if not found
+  if [ ! -e "/Library/Application Support/Dialog/Dialog.app" ]; then
+    echo "Dialog not found. Installing..." 2>&1 | tee -a "$logfile"
+    # Create temporary working directory
+    workDirectory=$( /usr/bin/basename "$0" )
+    tempDirectory=$( /usr/bin/mktemp -d "/private/tmp/$workDirectory.XXXXXX" )
+    # Download the installer package
+    /usr/bin/curl --location --silent "$dialogURL" -o "$tempDirectory/Dialog.pkg"
+    # Verify the download
+    teamID=$(/usr/sbin/spctl -a -vv -t install "$tempDirectory/Dialog.pkg" 2>&1 | awk '/origin=/ {print $NF }' | tr -d '()')
+    # Install the package if Team ID validates
+    if [ "$dialogExpectedTeamID" = "$teamID" ] || [ "$dialogExpectedTeamID" = "" ]; then
+      /usr/sbin/installer -pkg "$tempDirectory/Dialog.pkg" -target /
+    else
+    	echo "Could not install SwiftDialog. Exiting." 2>&1 | tee -a "$logfile"
+      exitCode=1
+      exit $exitCode
+    fi
+    # Remove the temporary working directory when done
+    /bin/rm -Rf "$tempDirectory"  
+  else 
+  	echo "Dialog already found. Proceeding..." 2>&1 | tee -a "$logfile"
+  fi
 
-function finalize_failure(){
-	dialog_command "Command: Determinate: 1"
-	dialog_command "Command: DeterminateManualStep: 1"
-	dialog_command "Command: ContinueButton: Done ❌"
-	dialog_command "Command: MainText: Enrollment did not complete successfully. You will prompted to try again later."
-    dialog_command "Command: MainTitle: Enrollment Unfinished"
-}
+# -----------------------------------------------------------------------------------
+# *** VERIFY ENROLLMENT STATUS ***
+# -----------------------------------------------------------------------------------
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** CHECK WE'RE IN USER ENVIRONMENT ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Find if we are currently enrolled into any MDM currently. This function cannot be fully tested for all MDMs. If you're moving from an MDM besides JAMF please test this well prior to deployment.
 
+ for MDM in "${MDMs[@]}"; do
 
-# Check that user is logged in currently.
+	echo "Checking MDM enrollment for $MDM." 2>&1 | tee -a "$logfile"
+  grep -Ril "$MDM" "/private/var/db/ConfigurationProfiles/Settings/Managed Applications"; check_code="$?"
+  if [[ "$check_code" = 0 ]]; then 
+  	if [[ "$MDM" = "Mosyle" ]]; then
+  		echo "Device already enrolled in Mosyle. Exiting." 2>&1 | tee -a "$logfile"
+    	exit 0
+    fi
+    echo "You must unenroll this device from $MDM, and assign it to Mosyle in Apple Business/School Manager before proceeding." 2>&1 | tee -a "$logfile"
+    exit 0
+	fi
+
+done
+
+# -----------------------------------------------------------------------------------
+# *** VERIFY USER IS SIGNED IN ***
+# -----------------------------------------------------------------------------------
+
+# Check that a user is logged in currently.
 setupAssistantProcess=$(pgrep -l "Setup Assistant")
 until [ "$setupAssistantProcess" = "" ]; do
-  echo "$(date "+%a %h %d %H:%M:%S"): Setup Assistant Still Running. PID $setupAssistantProcess." 2>&1 | tee -a /var/tmp/deploy.log
-  sleep 1
-  setupAssistantProcess=$(pgrep -l "Setup Assistant")
+  	echo "$(date "+%a %h %d %H:%M:%S"): Setup Assistant Still Running. PID $setupAssistantProcess."
+  	sleep 5
+  	setupAssistantProcess=$(pgrep -l "Setup Assistant")
 done
-echo "$(date "+%a %h %d %H:%M:%S"): Out of Setup Assistant" 2>&1 | tee -a /var/tmp/deploy.log
-echo "$(date "+%a %h %d %H:%M:%S"): Logged in user is $(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }')" 2>&1 | tee -a /var/tmp/deploy.log
+echo "$(date "+%a %h %d %H:%M:%S"): Out of Setup Assistant" 2>&1 | tee -a "$logfile"
 
-finderProcess=$(pgrep -l "Finder")
+		finderProcess=$(pgrep -l "Finder")
 until [ "$finderProcess" != "" ]; do
-  echo "$(date "+%a %h %d %H:%M:%S"): Finder process not found. Assuming device is at login screen. PID $finderProcess" 2>&1 | tee -a /var/tmp/deploy.log
-  sleep 1
-  finderProcess=$(pgrep -l "Finder")
+  	echo "$(date "+%a %h %d %H:%M:%S"): Finder process not found. Assuming device is at login screen. PID $finderProcess"
+  	sleep 5
+  	finderProcess=$(pgrep -l "Finder")
 done
-echo "$(date "+%a %h %d %H:%M:%S"): Finder is running" 2>&1 | tee -a /var/tmp/deploy.log
-echo "$(date "+%a %h %d %H:%M:%S"): Logged in user is $(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }')" 2>&1 | tee -a /var/tmp/deploy.log
+echo "$(date "+%a %h %d %H:%M:%S"): Finder is running"  2>&1 | tee -a "$logfile"
+echo "$(date "+%a %h %d %H:%M:%S"): Logged in user is $(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }')" 2>&1 | tee -a "$logfile"
 
+# -----------------------------------------------------------------------------------
+# *** STARTING DIALOG WINDOW ***
+# -----------------------------------------------------------------------------------
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** START EXECUTING ENROLLMENT PROCESS AND INFORMING END USER ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+/bin/echo "$dialogCMD_Initial" 2>&1 | tee -a "$logfile"
+eval "$dialogCMD_Initial"; return_code="$?"
+sleep .5
 
-# Check for existence of a profile from any MDM that should get removed upon unenrollment. Once gone start attempting to enroll into new MDM/Mosyle.
-checkAllMDMs
+case "$return_code" in 
+	0)
+		echo "User has pressed 'Start' on 'Initial' dialog. Continuing script." 2>&1 | tee -a "$logfile"
 
-# Check for existence of a file from the old MDM that should get removed upon unenrollment. Once gone start attempting to enroll into new MDM/Mosyle.
-checkOldMDM
+		sudo profiles renew -type enrollment
 
+		/bin/echo "$dialogCMD_ADE_Enroll" 2>&1 | tee -a "$logfile"
+		eval "$dialogCMD_ADE_Enroll"; return_code="$?"
 
-# Prepare by removing provisioning file.
-cleanup
+		sleep .5
 
+		case "$return_code" in 
+			0)
+				echo "User has pressed 'Done' on 'ADE' dialog. Checking enrollment success, and if not successful continuing to 'Safari' dialog." 2>&1 | tee -a "$logfile"
 
-# Clear log file
-clearlog
+				checkMosyle
 
+				open -a Safari "$enrollment_URL"
 
+				/bin/echo "$dialogCMD_Safari_Enroll" 2>&1 | tee -a "$logfile"
+				eval "$dialogCMD_Safari_Enroll"; return_code="$?"
+				sleep .5
 
-# Write to DEPNotify command file.
-dialog_command "$dialog_cmd"
+				case "$return_code" in 
+					0)
+						echo "User has pressed 'Done' on 'Safari' dialog. Checking if enrollment occurred and exiting code 10 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
+						checkMosyle
 
-# Launch DEPNotify and run it in the background. Sleep for a while to let it initialize and give users a chance to read initial message.
-open -a "$dialog_app"
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 10
+					;;
+					2)
+						echo "User has pressed 'Couldn't complete enrollment...' on 'Safari' dialog. Checking if enrollment occurred and exiting code 2 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
-for i in {1..12}; do
-	rest
-done
+						checkMosyle
 
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 2
+					;;
+					4)
+						echo "Timer expired on 'Safari' dialog. Checking if enrollment occurred and exiting code 4 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
-# Start enrollment process.
-    enroll
+						checkMosyle
 
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 4
+					;;
+					*)
+						echo "'Safari' dialog window closed. Checking if enrollment occurred and exiting code 1 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
-# Change DEPNotify window based on enrollment process starting
-    dialog_command "Command: MainText: Follow steps outlined below to enroll your computer. \n \n1️⃣ Click the notification that shows up in the top right corner \n \n2️⃣ This will open a pop-up window asking for you to allow your device to be enrolled. Select 'Allow' \n \n3️⃣ Type in the login credentials for your computer and click 'Enroll'"
-rest
+						checkMosyle
 
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 1
+					;;
+				esac
 
-# Start while loop that ends once the Mosyle MDM application is detected, or times out after about 6 and a half minutes. 
-for i in {1..80}; do
-# Detect Mosyle profile to allow Dialog box to close.
-    checknewMDM
-		if [[ $? = 0 ]];
-			then
-				echo "Computer enrolled into Mosyle. Allowing Dialog window to be closed"
-				finalize_success
-				break 2
-		else
-				echo "Computer not enrolled yet."
-				rest
-		fi
-done
+			;;
+			2)
+				echo "User has pressed 'Didn't receive notification' on 'ADE' dialog. Checking for enrollment, and if not successful continuing to 'Safari' dialog." 2>&1 | tee -a "$logfile"
 
+				checkMosyle
 
-# If Mosyle profile isn't in place (due to user not finishing enrollment) then exit here to prevent running any further customized portionof the script before user finishes enrolling.
-checknewMDM
-if [[ ! $? = 0 ]]; 
-    then 
-        finalize_failure
-        exit 1
-fi
+				open -a Safari "$enrollment_URL"
 
+				/bin/echo "$dialogCMD_Safari_Enroll" 2>&1 | tee -a "$logfile"
+				eval "$dialogCMD_Safari_Enroll"; return_code="$?"
+				sleep .5
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** CUSTOM PER CLIENT/OPTIONAL - CLEANUP OLD MDM TENANT FILES ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+				case "$return_code" in 
+					0)
+						echo "User has pressed 'Done' on 'Safari' dialog. Checking if enrollment occurred and exiting code 10 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
+						checkMosyle
 
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 10
+					;;
+					2)
+						echo "User has pressed 'Couldn't complete enrollment...' on 'Safari' dialog. Checking if enrollment occurred and exiting code 2 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
+						checkMosyle
 
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 2
+					;;
+					4)
+						echo "Timer expired on 'Safari' dialog. Checking if enrollment occurred and exiting code 4 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** END OF SCRIPT ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-exit 0
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
-# *** END OF SCRIPT ***
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+						checkMosyle
+
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 4
+					;;
+					*)
+						echo "'Safari' dialog window closed. Checking if enrollment occurred and exiting code 1 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
+
+						checkMosyle
+
+						/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+						eval "$dialogCMD_Error" &
+						sleep .5
+						exit 1
+					;;
+				esac
+			;;
+			4)
+				echo "Timer expired on 'ADE' dialog. Checking if enrollment occurred and exiting code 4 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
+
+				checkMosyle
+
+				/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+				eval "$dialogCMD_Error" &
+				sleep .5
+				exit 4
+			;;
+			*)
+				echo "'ADE' dialog was closed. Checking if enrollment occurred and exiting code 1 with 'Error' dialog if not." 2>&1 | tee -a "$logfile"
+
+				checkMosyle
+
+				/bin/echo "$dialogCMD_Error" 2>&1 | tee -a "$logfile"
+				eval "$dialogCMD_Error" &
+				sleep .5
+				exit 1
+			;;
+		esac
+	;;
+	4)
+		echo "Timer expired on 'Initial' dialog. Exiting code 4." 2>&1 | tee -a "$logfile"
+
+		exit 4
+	;;
+	*)
+		echo "'Initial' dialog was closed. Exiting code 1." 2>&1 | tee -a "$logfile"
+
+		exit 1
+	;;
+esac
