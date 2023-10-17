@@ -26,14 +26,12 @@ NOTE: There's also a section designed to let you utilize an MDM's API if it's ca
 
 - Package the script, launch daemon, any logo/icon file you want, and a log file if desired. 
 
-- Move devices in ABM/ASM.
+- Move devices in ABM/ASM to the new MDM (Mosyle is what this is designed around).
 
 - Communicate what to expect with your end users.
 
 - Push the package in the original MDM. End users will not be prompted to enroll until they have been unenrolled from the original MDM. 
 
-- Unenroll the devices from the original MDM. 
+- Unenroll the devices from the original MDM when ready (a good way to check would be a script that makes sure these files are in place, or checks for the installation of the package). 
 
-NOTE: If using the API of your original to MDM to unenroll with the script then end users will start getting prompted immediately. 
-
-
+- Due to the existing launch daemon users will start being prompted to enroll into the new MDM. 
