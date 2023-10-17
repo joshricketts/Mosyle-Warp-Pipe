@@ -20,7 +20,7 @@ https://github.com/swiftDialog/swiftDialog
 ### Recommended method
 
 
-- Customize the Migration.sh file to say what you want in the message and title, and to display the icon/logo you want.
+- Customize the warp_mosyle.sh file to say what you want in the message and title, and to display the icon/logo you want.
 
 NOTE: There's also a section designed to let you utilize an MDM's API if it's capable of unenrolling a device. I'll be attaching a demo package that utilized the API for JAMF School to unenroll devices for a client. 
 
